@@ -79,15 +79,28 @@ def main(
     show_field_metadata: bool,
     show_schema_metadata: bool,
 ) -> None:
-    schema = pa.ipc.read_schema(pa.py_buffer(schema_file.read_bytes()))
+    # This line works and type checks:
+    #
+    #   schema = pa.ipc.read_schema(pa.py_buffer(schema_file.read_bytes()))
+    #
+    # It is equivalent to the following line, but the following line does not
+    # type check.  Although `str` and `Path` are both supported argument types,
+    # they are not covered by the type annotation on `read_schema`.
+    schema = pa.ipc.read_schema(schema_file)  # type: ignore
 
     print(
         schema.to_string(
             truncate_metadata=truncate_metadata,
             show_field_metadata=show_field_metadata,
-            show_schema_metadata=show_schema_metadata,
+            show_schema_metadata=True,
         )
     )
+
+    if show_schema_metadata:
+        # Even when `truncate_metadata` is `False`, some truncation may still
+        # occur, so we'll directly dumpy the metadata so we can view it all.
+        print("-- schema metadata --")
+        print("geo:", schema.metadata[b"geo"].decode())
 
 
 if __name__ == "__main__":
