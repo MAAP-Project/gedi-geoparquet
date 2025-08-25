@@ -44,11 +44,15 @@ quality_flag
 rh
 rx_assess/rx_maxamp
 rx_assess/sd_corrected
+
+# TODO Support all of these? Requires mapping a path to a field alias since all
+# "basenames" are the same.  For example, we need some sort of aliasing syntax,
+# such as "rx_algrunflag_a1=rx_processing_a1/rx_algrunflag".  For now, exposing
+# only rx_processing_a1/* datasets without an "_a1" suffix.
+
 rx_processing_a1/rx_algrunflag
 rx_processing_a1/toploc
 rx_processing_a1/zcross
-
-# TODO support all? requires mapping a path to a field alias (e.g., rx_algrunflag_a1)
 # rx_processing_a2/rx_algrunflag
 # rx_processing_a2/toploc
 # rx_processing_a2/zcross
