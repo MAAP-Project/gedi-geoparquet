@@ -20,16 +20,16 @@ schemas := $(datasets:datasets/%.txt=schemas/%)
 all: $(schemas)
 
 schemas/GEDI_L2A: $(GEDI_L2A_HDF5) datasets/GEDI_L2A.txt scripts/generate_schema.py
-	uv run scripts/generate_schema.py --datasets $(@:schemas/%=datasets/%).txt --output $@ $<
+	uv run scripts/generate_schema.py --datasets $(@:schemas/%=datasets/%).txt --output ${@}.arrows $<
 
 schemas/GEDI_L2B: $(GEDI_L2B_HDF5) datasets/GEDI_L2B.txt scripts/generate_schema.py
-	uv run scripts/generate_schema.py --datasets $(@:schemas/%=datasets/%).txt --output $@ $<
+	uv run scripts/generate_schema.py --datasets $(@:schemas/%=datasets/%).txt --output ${@}.arrows $<
 
 schemas/GEDI_L4A: $(GEDI_L4A_HDF5) datasets/GEDI_L4A.txt scripts/generate_schema.py
-	uv run scripts/generate_schema.py --datasets $(@:schemas/%=datasets/%).txt --output $@ $<
+	uv run scripts/generate_schema.py --datasets $(@:schemas/%=datasets/%).txt --output ${@}.arrows $<
 
 schemas/GEDI_L4C: $(GEDI_L4C_HDF5) datasets/GEDI_L4C.txt scripts/generate_schema.py
-	uv run scripts/generate_schema.py --datasets $(@:schemas/%=datasets/%).txt --output $@ $<
+	uv run scripts/generate_schema.py --datasets $(@:schemas/%=datasets/%).txt --output ${@}.arrows $<
 
 $(GEDI_L2A_HDF5):
 	curl $(CURL_OPTS) --output $@ $(LPDAAC_BASE_URL)/GEDI02_A.002/$(shell basename $@ .h5)/$(shell basename $@)
