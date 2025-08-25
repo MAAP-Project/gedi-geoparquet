@@ -92,13 +92,13 @@ def main(
         schema.to_string(
             truncate_metadata=truncate_metadata,
             show_field_metadata=show_field_metadata,
-            show_schema_metadata=True,
+            show_schema_metadata=False,
         )
     )
 
     if show_schema_metadata:
         # Even when `truncate_metadata` is `False`, some truncation may still
-        # occur, so we'll directly dumpy the metadata so we can view it all.
+        # occur, so we'll directly dump the metadata so we can view all of it.
         print("-- schema metadata --")
         print("geo:", schema.metadata[b"geo"].decode())
 

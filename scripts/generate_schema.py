@@ -8,6 +8,7 @@ import typing as t
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 
+import geoarrow.pyarrow as ga
 import h5py
 import numpy as np
 import pyarrow as pa
@@ -15,28 +16,20 @@ import pyarrow as pa
 type PyArrowMetadata = dict[str | bytes, str | bytes]
 
 
-GEO_METADATA = {
-    "version": "1.1.0",
-    "primary_column": "geometry",
-    "columns": {
-        "geometry": {
-            "encoding": "point",
-            "geometry_types": ["Point"],
-            # See https://gedi.umd.edu/instrument/specifications/
-            "bbox": [-180.0, -51.6, 180.0, 51.6],
-            "covering": {
-                "bbox": {
-                    "xmax": ["bbox", "xmax"],
-                    "xmin": ["bbox", "xmin"],
-                    "ymax": ["bbox", "ymax"],
-                    "ymin": ["bbox", "ymin"],
-                }
+SCHEMA_METADATA: PyArrowMetadata = {
+    "geo": json.dumps(
+        {
+            "version": "1.1.0",
+            "primary_column": "geometry",
+            "columns": {
+                "geometry": {
+                    "encoding": "point",
+                    "geometry_types": ["Point"],
+                },
             },
-        },
-    },
+        }
+    )
 }
-
-SCHEMA_METADATA: PyArrowMetadata = {"geo": json.dumps(GEO_METADATA)}
 
 
 def basename(ds: h5py.Dataset) -> str:
@@ -180,8 +173,9 @@ def to_pyarrow_schema(
 
     datasets = projection(group, relative_paths)
     fields = sorted(map(to_pyarrow_field, datasets), key=lambda field: field.name)
+    geometry = pa.field("geometry", ga.point())
 
-    return pa.schema(fields, metadata=metadata)
+    return pa.schema([*fields, geometry], metadata=metadata)
 
 
 class FileLinesReader(argparse.Action):
