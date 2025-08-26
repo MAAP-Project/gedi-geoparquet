@@ -1,0 +1,79 @@
+beam
+degrade_flag
+delta_time
+digital_elevation_model
+digital_elevation_model_srtm
+elev_lowestmode
+energy_total
+geolocation/elev_highestreturn_a1
+geolocation/elev_highestreturn_a2
+geolocation/elev_highestreturn_a3
+geolocation/elev_highestreturn_a4
+geolocation/elev_highestreturn_a5
+geolocation/elev_highestreturn_a6
+geolocation/rh_a1
+geolocation/rh_a2
+geolocation/rh_a3
+geolocation/rh_a4
+geolocation/rh_a5
+geolocation/rh_a6
+geolocation/sensitivity_a1
+geolocation/sensitivity_a2
+geolocation/sensitivity_a3
+geolocation/sensitivity_a4
+geolocation/sensitivity_a5
+geolocation/sensitivity_a6
+geolocation/stale_return_flag
+land_cover_data/landsat_treecover
+land_cover_data/landsat_water_persistence
+land_cover_data/leaf_off_doy
+land_cover_data/leaf_off_flag
+land_cover_data/leaf_on_cycle
+land_cover_data/leaf_on_doy
+land_cover_data/modis_nonvegetated
+land_cover_data/modis_nonvegetated_sd
+land_cover_data/modis_treecover
+land_cover_data/modis_treecover_sd
+land_cover_data/pft_class
+land_cover_data/region_class
+land_cover_data/urban_proportion
+lat_lowestmode
+lon_lowestmode
+num_detectedmodes
+quality_flag
+rh
+rx_assess/rx_maxamp
+rx_assess/sd_corrected
+
+# TODO Support all of these? Requires mapping a path to a field alias since all
+# "basenames" are the same.  For example, we need some sort of aliasing syntax,
+# such as "rx_algrunflag_a1=rx_processing_a1/rx_algrunflag".  For now, exposing
+# only rx_processing_a1/* datasets without an "_a1" suffix.
+
+rx_processing_a1/rx_algrunflag
+rx_processing_a1/toploc
+rx_processing_a1/zcross
+# rx_processing_a2/rx_algrunflag
+# rx_processing_a2/toploc
+# rx_processing_a2/zcross
+# rx_processing_a3/rx_algrunflag
+# rx_processing_a3/toploc
+# rx_processing_a3/zcross
+# rx_processing_a4/rx_algrunflag
+# rx_processing_a4/toploc
+# rx_processing_a4/zcross
+# rx_processing_a5/rx_algrunflag
+# rx_processing_a5/toploc
+# rx_processing_a5/zcross
+# rx_processing_a6/rx_algrunflag
+# rx_processing_a6/toploc
+# rx_processing_a6/zcross
+
+selected_algorithm
+selected_mode
+selected_mode_flag
+sensitivity
+shot_number
+solar_azimuth
+solar_elevation
+surface_flag
