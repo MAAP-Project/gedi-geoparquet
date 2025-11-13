@@ -2,7 +2,7 @@ import typing as t
 
 import polars as pl
 
-# The full schema was produced via gedi_geoparquet.polars_._infer_schema.
+# The full schema was produced via gedi_geoparquet.polars._infer_schema.
 # Although we're selecting only a subset of columns, we're leaving the unused
 # columns in comments so we have a full reference of what's available.
 

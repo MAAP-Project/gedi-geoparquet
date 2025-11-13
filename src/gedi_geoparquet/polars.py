@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import typing as t
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterator, Sequence
 
 import h5py
 import polars as pl
 import polars.datatypes
 from polars.io.plugins import register_io_source
+
+import gedi_geoparquet.hdf5 as hdf5_
 
 DEFAULT_BATCH_SIZE = 100_000
 DEFAULT_N_ROWS = 2**64 - 1
@@ -158,7 +160,9 @@ def _infer_schema(group: h5py.Group) -> pl.Schema:
             'subgroup/ds_0d': Int64,
             'subgroup/ds_3d': List(List(UInt8))})
     """
-    return pl.Schema({name: _schema_dtype(ds) for name, ds in _flatten(group).items()})
+    return pl.Schema(
+        {name: _schema_dtype(ds) for name, ds in hdf5_.flatten(group).items()}
+    )
 
 
 def _schema_dtype(ds: h5py.Dataset) -> pl.DataType | polars.datatypes.DataTypeClass:
@@ -213,45 +217,3 @@ def _schema_dtype(ds: h5py.Dataset) -> pl.DataType | polars.datatypes.DataTypeCl
     )
 
     return reduce(lambda dtype, _: pl.List(dtype), range(1, ds.ndim), base_dtype)
-
-
-def _flatten(group: h5py.Group) -> Mapping[str, h5py.Dataset]:
-    """Flatten (recursively) all h5py Datasets within an h5py Group.
-
-    Entries in the group that are soft links to datasets are included in the
-    result (see example).
-
-    Arguments
-    ---------
-    group
-        Group to flatten.
-
-    Returns
-    -------
-    mapping
-        Mapping from relative dataset name to dataset for every dataset (at all
-        depths) within ``group``.  Each relative name is the name of a dataset
-        relative to ``group``'s name.
-
-    Examples
-    --------
-    >>> import h5py
-    >>> with h5py.File.in_memory() as f:
-    ...     group = f.create_group("group")
-    ...     group_ds = group.create_dataset("group_ds", dtype="f8")
-    ...     subgroup = group.create_group("subgroup")
-    ...     subgroup_ds = subgroup.create_dataset("subgroup_ds", dtype="i8")
-    ...     f["group/subgroup_ds"] = h5py.SoftLink("/group/subgroup/subgroup_ds")
-    ...     group_ds.name
-    ...     subgroup_ds.name
-    ...     _flatten(group)
-    '/group/group_ds'
-    '/group/subgroup/subgroup_ds'
-    {'group_ds': <HDF5 dataset "group_ds": shape None, type "<f8">,
-     'subgroup/subgroup_ds': <HDF5 dataset "subgroup_ds": shape None, type "<i8">,
-     'subgroup_ds': <HDF5 dataset "subgroup_ds": shape None, type "<i8">}
-    """
-    objects = {}
-    group.visit_links(lambda relname: objects.update({relname: group[relname]}))
-
-    return {name: obj for name, obj in objects.items() if isinstance(obj, h5py.Dataset)}

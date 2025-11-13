@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 import typing as t
 from enum import StrEnum, auto
 
@@ -342,3 +343,45 @@ def _rename_column(column: str) -> str:
         return f"{basename}_a{match['algnum']}"
 
     return basename
+
+
+def flatten(group: h5py.Group) -> Mapping[str, h5py.Dataset]:
+    """Flatten (recursively) all h5py Datasets within an h5py Group.
+
+    Entries in the group that are soft links to datasets are included in the
+    result (see example).
+
+    Arguments
+    ---------
+    group
+        Group to flatten.
+
+    Returns
+    -------
+    mapping
+        Mapping from relative dataset name to dataset for every dataset (at all
+        depths) within ``group``.  Each relative name is the name of a dataset
+        relative to ``group``'s name.
+
+    Examples
+    --------
+    >>> import h5py
+    >>> with h5py.File.in_memory() as f:
+    ...     group = f.create_group("group")
+    ...     group_ds = group.create_dataset("group_ds", dtype="f8")
+    ...     subgroup = group.create_group("subgroup")
+    ...     subgroup_ds = subgroup.create_dataset("subgroup_ds", dtype="i8")
+    ...     f["group/subgroup_ds"] = h5py.SoftLink("/group/subgroup/subgroup_ds")
+    ...     group_ds.name
+    ...     subgroup_ds.name
+    ...     flatten(group)
+    '/group/group_ds'
+    '/group/subgroup/subgroup_ds'
+    {'group_ds': <HDF5 dataset "group_ds": shape None, type "<f8">,
+     'subgroup/subgroup_ds': <HDF5 dataset "subgroup_ds": shape None, type "<i8">,
+     'subgroup_ds': <HDF5 dataset "subgroup_ds": shape None, type "<i8">}
+    """
+    objects = {}
+    group.visit_links(lambda relname: objects.update({relname: group[relname]}))
+
+    return {name: obj for name, obj in objects.items() if isinstance(obj, h5py.Dataset)}
