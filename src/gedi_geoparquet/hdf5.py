@@ -8,7 +8,7 @@ import numpy as np
 import polars as pl
 import pyarrow as pa
 
-import gedi_geoparquet.polars_ as pl_
+import gedi_geoparquet.polars as pl_
 
 
 class BeamType(StrEnum):
