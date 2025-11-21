@@ -5,7 +5,6 @@ from functools import reduce
 from pathlib import Path
 
 import polars as pl
-import pyarrow.parquet as pq
 from cyclopts import App, Parameter
 
 from gedi_geoparquet import GEOPARQUET_METADATA
@@ -17,6 +16,8 @@ type Compression = t.Literal["brotli", "gzip", "lz4", "snappy", "zstd"]
 # "default" for now (see https://github.com/BrianPugh/cyclopts/issues/655).
 app = App(help_formatter="default")
 
+DEGRADE_FLAGS = {0, 3, 8, 10, 13, 18, 20, 23, 28, 30, 33, 38, 40, 43, 48, 60, 63, 68}
+
 
 @app.default
 def join(
@@ -25,7 +26,7 @@ def join(
     /,
     *,
     compression: Compression = "zstd",
-    compression_level: int | None = None,
+    compression_level: int = 3,
 ) -> None:
     """Join multiple GEDI parquet files on shot_number.
 
@@ -45,29 +46,31 @@ def join(
         does not allow specifying a compression level.
     """
 
-    def full_join(left: pl.LazyFrame, right: pl.LazyFrame) -> pl.LazyFrame:
-        return left.join(right, on="shot_number", how="full").select(
-            pl.exclude("^.*_right$")
+    def join_(left: pl.LazyFrame, right: pl.LazyFrame) -> pl.LazyFrame:
+        return left.join(right, on="shot_number", how="inner").select(
+            pl.exclude("^.*_right$")  # drop duplicate columns
         )
 
-    lf = reduce(full_join, map(pl.scan_parquet, inputs))
+    lf = reduce(join_, map(pl.scan_parquet, inputs))
 
-    # Polars does not seem to write metadata in a manner that Arrow recognizes,
-    # so we are forced to collect our Polars LazyFrame into an Arrow Table in
-    # order to add the metadata correctly.
+    # Using LazyFrame.sink_parquet, rather than DataFrame.write_parquet, is more
+    # performant and reduces memory pressure, but produces a significantly
+    # larger file, so we're avoiding it unless memory usage becomes an issue.
+    # I suspect this is because there are some write optimizations that can be
+    # leveraged when all of the data is in memory that cannot otherwise be
+    # leveraged/determined when data is being streamed.
 
-    ## This doesn't seem to write the metadata where Arrow recognizes it, or at
-    ## least not where it will be attached to the Arrow Schema upon reading of
-    ## the schema.
-    # lf.sink_parquet(output, metadata=GEOPARQUET_METADATA)
-
-    table = lf.collect().to_arrow().replace_schema_metadata(GEOPARQUET_METADATA)
-
-    pq.write_table(
-        table,
+    lf.filter(
+        pl.col("degrade_flag").is_in(DEGRADE_FLAGS),
+        pl.col("sensitivity") >= 0.95,
+        pl.col("sensitivity_a2") >= 0.95,
+        quality_flag=1,
+        surface_flag=1,
+    ).collect().write_parquet(
         output,
         compression=compression,
         compression_level=compression_level,
+        metadata=GEOPARQUET_METADATA,  # type: ignore[arg-type]
     )
 
 

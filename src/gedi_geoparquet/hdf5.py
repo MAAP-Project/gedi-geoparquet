@@ -8,6 +8,7 @@ import h5py
 import numpy as np
 import polars as pl
 import pyarrow as pa
+from polars._typing import ArrowSchemaExportable
 
 import gedi_geoparquet.polars as pl_
 
@@ -68,30 +69,26 @@ nanoseconds), convert to `int`, and use `ns` (nanosecond) resolution.
 """
 
 
-def to_arrow(file: h5py.File, *, schema: pa.Schema) -> pa.Table:
+def to_arrow(file: h5py.File, *, schema: ArrowSchemaExportable) -> pa.Table:
     """Read a GEDI HDF5 file into an Arrow Table.
 
-    This is the Arrow equivalent of the materialized Polars LazyFrame produced
+    This is the Arrow equivalent of materializing the Polars LazyFrame produced
     by the ``to_polars`` function.  See that function for details.
     """
 
-    schema_metadata = schema.metadata if schema else None
-    polars_schema = pl.Schema(schema)
+    schema_metadata = pa.schema(schema).metadata if schema else None  # type: ignore
 
-    # WARNING: When Polars converts to Arrow, it defaults to using LargeString and
-    # LargeList even when String and List will suffice.  This might be problematic.
-    # See https://github.com/pola-rs/polars/issues/15047.
     return (
-        to_polars(file, schema=polars_schema)
+        to_polars(file, schema=schema)
         .collect()
         .to_arrow()
         # Polars does not support schema metadata, so we need to add back any
-        # such metadata that might have been supplied with the Arrow schema.
+        # such metadata that might have been supplied with the schema argument.
         .replace_schema_metadata(schema_metadata)
     )
 
 
-def to_polars(file: h5py.File, *, schema: pl.Schema) -> pl.LazyFrame:
+def to_polars(file: h5py.File, *, schema: ArrowSchemaExportable) -> pl.LazyFrame:
     """Lazily read a GEDI HDF5 file into a Polars LazyFrame.
 
     The specified schema indicates which datasets from each of the beam groups
@@ -127,8 +124,8 @@ def to_polars(file: h5py.File, *, schema: pl.Schema) -> pl.LazyFrame:
         datasets from the input file, as specified by the schema.  In addition,
         the following columns will be included:
 
-        - `beam_name`: `pl.Enum` (e.g., "BEAM0000")
-        - `beam_type`: `pl.Enum` ("coverage" or "power")
+        - `beam_name`: `pl.String` (e.g., "BEAM0000")
+        - `beam_type`: `pl.String` ("coverage" or "power")
         - `time`: `pl.Datetime` (GEDI Epoch of 2018-01-01 plus `delta_time`
           seconds, with `ns` resolution in UTC)
         - `geometry`: `pl.Struct` (point structs constructed from the
@@ -165,15 +162,15 @@ def to_polars(file: h5py.File, *, schema: pl.Schema) -> pl.LazyFrame:
     ...     lf.collect_schema()
     ...     lf.collect()
     Schema({'agbd': Float64,
-            'beam_name': Enum(categories=['BEAM0000', ..., 'BEAM1011']),
-            'beam_type': Enum(categories=['coverage', 'power']),
+            'beam_name': String,
+            'beam_type': String,
             'time': Datetime(time_unit='ns', time_zone='UTC'),
             'geometry': Struct({'x': Float64, 'y': Float64})})
     shape: (4, 5)
     ┌──────┬───────────┬───────────┬─────────────────────────────────┬─────────────────────────┐
     │ agbd ┆ beam_name ┆ beam_type ┆ time                            ┆ geometry                │
     │ ---  ┆ ---       ┆ ---       ┆ ---                             ┆ ---                     │
-    │ f64  ┆ enum      ┆ enum      ┆ datetime[ns, UTC]               ┆ struct[2]               │
+    │ f64  ┆ str       ┆ str       ┆ datetime[ns, UTC]               ┆ struct[2]               │
     ╞══════╪═══════════╪═══════════╪═════════════════════════════════╪═════════════════════════╡
     │ 0.9  ┆ BEAM0000  ┆ coverage  ┆ 2019-05-26 13:41:48.002294152 … ┆ {-70.513307,-51.773069} │
     │ 2.5  ┆ BEAM0000  ┆ coverage  ┆ 2019-05-26 13:41:48.010558152 … ┆ {-70.512482,-51.773067} │
@@ -198,7 +195,7 @@ def to_polars(file: h5py.File, *, schema: pl.Schema) -> pl.LazyFrame:
 def _beam_to_polars(
     beam: h5py.Group,
     *,
-    schema: pl.Schema | None = None,
+    schema: ArrowSchemaExportable | None = None,
 ) -> pl.LazyFrame:
     """Lazily read a GEDI beam group into a Polars LazyFrame.
 
@@ -255,7 +252,7 @@ def _beam_to_polars(
     ┌──────┬──────────────┬───────────┬───────────┐
     │ agbd ┆ quality_flag ┆ beam_name ┆ beam_type │
     │ ---  ┆ ---          ┆ ---       ┆ ---       │
-    │ f64  ┆ i8           ┆ enum      ┆ enum      │
+    │ f64  ┆ i8           ┆ str       ┆ str       │
     ╞══════╪══════════════╪═══════════╪═══════════╡
     │ 0.9  ┆ 0            ┆ BEAM0000  ┆ coverage  │
     │ 2.5  ┆ 1            ┆ BEAM0000  ┆ coverage  │
@@ -265,7 +262,7 @@ def _beam_to_polars(
     ┌──────┬───────────┬───────────┐
     │ agbd ┆ beam_name ┆ beam_type │
     │ ---  ┆ ---       ┆ ---       │
-    │ u8   ┆ enum      ┆ enum      │
+    │ u8   ┆ str       ┆ str       │
     ╞══════╪═══════════╪═══════════╡
     │ 0    ┆ BEAM0000  ┆ coverage  │
     │ 2    ┆ BEAM0000  ┆ coverage  │
@@ -275,8 +272,29 @@ def _beam_to_polars(
     beam_name = BeamName[_basename(beam)]
 
     return pl_.scan_hdf5(beam, schema=schema).with_columns(
-        beam_name=pl.lit(beam_name).cast(pl.Enum(BeamName)),
-        beam_type=pl.lit(beam_name.type).cast(pl.Enum(BeamType)),
+        # Converting from a PyArrow table to a Pandas DataFrame (via pl.Table.to_pandas)
+        # fails with the following error when using enum columns, so we're
+        # sticking with string columns.  (The thought with enum was that perhaps
+        # they're stored and queried more efficiently.)
+        #
+        #     ArrowTypeError: Converting unsigned dictionary indices to pandas not yet
+        #     supported, index type: uint8
+        #
+        # This indicates that it doesn't like this part of the schema (notice that both
+        # column types have dictionary indices of typt uint8, corresponding to the
+        # error message above, but using string instead of enum resolves the error):
+        #
+        #     beam_name: dictionary<values=string, indices=uint8, ordered=0>
+        #      -- field metadata --
+        #      _PL_ENUM_VALUES2: '8;BEAM00008;BEAM00018;BEAM00108;BEAM00118;BEAM01018;' + 28
+        #      beam_type: dictionary<values=string, indices=uint8, ordered=0>
+        #      -- field metadata --
+        #      _PL_ENUM_VALUES2: '8;coverage5;power'
+        #
+        # beam_name=pl.lit(beam_name).cast(pl.Enum(BeamName)),
+        # beam_type=pl.lit(beam_name.type).cast(pl.Enum(BeamType)),
+        beam_name=pl.lit(beam_name).cast(pl.String),
+        beam_type=pl.lit(beam_name.type).cast(pl.String),
     )
 
 

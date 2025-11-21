@@ -1,48 +1,76 @@
-.DEFAULT_GOAL := all
+.DEFAULT_GOAL := schema
 
-CACHE_DIR ?= .cache
-COOKIE_JAR ?= $(HOME)/.edl-cookies
+SCHEMA_DIR ?= src/gedi_geoparquet/schema/resources
+GRANULE_ID ?= 2025050224403_O35067_01_T03238
+OUTPUT_DIR ?= data
 
-# Arbitrary selection of (nearly) oldest granule from each GEDI collection
-GEDI_L2A_HDF5 := $(CACHE_DIR)/GEDI02_A_2019108002012_O01959_01_T03909_02_003_01_V002.h5
-GEDI_L2B_HDF5 := $(CACHE_DIR)/GEDI02_B_2019108002012_O01959_01_T03909_02_003_01_V002.h5
-GEDI_L4A_HDF5 := $(CACHE_DIR)/GEDI04_A_2019108002012_O01959_01_T03909_02_002_02_V002.h5
-GEDI_L4C_HDF5 := $(CACHE_DIR)/GEDI04_C_2019108002012_O01959_01_T03909_02_001_01_V002.h5
+GEDI_L2A_PREFIX := https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/GEDI02_A.002
+GEDI_L2B_PREFIX := https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/GEDI02_B.002
+GEDI_L4A_PREFIX := https://data.ornldaac.earthdata.nasa.gov/protected/gedi/GEDI_L4A_AGB_Density_V2_1/data
+GEDI_L4C_PREFIX := https://data.ornldaac.earthdata.nasa.gov/protected/gedi/GEDI_L4C_WSCI/data
 
-CURL_OPTS := --netrc --location --fail --silent --cookie-jar $(COOKIE_JAR) --cookie $(COOKIE_JAR)
-LPDAAC_BASE_URL := https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected
-ORNLDAAC_BASE_URL := https://data.ornldaac.earthdata.nasa.gov/protected/gedi
+GEDI_L2A_HDF5_URL := $(GEDI_L2A_PREFIX)/GEDI02_A_$(GRANULE_ID)_02_004_02_V002/GEDI02_A_$(GRANULE_ID)_02_004_02_V002.h5
+GEDI_L2B_HDF5_URL := $(GEDI_L2B_PREFIX)/GEDI02_B_$(GRANULE_ID)_02_004_01_V002/GEDI02_B_$(GRANULE_ID)_02_004_01_V002.h5
+GEDI_L4A_HDF5_URL := $(GEDI_L4A_PREFIX)/GEDI04_A_$(GRANULE_ID)_02_004_01_V002.h5
+GEDI_L4C_HDF5_URL := $(GEDI_L4C_PREFIX)/GEDI04_C_$(GRANULE_ID)_02_001_01_V002.h5
 
-datasets := $(wildcard datasets/*.txt)
-schemas := $(datasets:datasets/%.txt=schemas/%)
+GEDI_L2A_SCHEMA := $(SCHEMA_DIR)/gedi_l2a.arrows
+GEDI_L2B_SCHEMA := $(SCHEMA_DIR)/gedi_l2b.arrows
+GEDI_L4A_SCHEMA := $(SCHEMA_DIR)/gedi_l4a.arrows
+GEDI_L4C_SCHEMA := $(SCHEMA_DIR)/gedi_l4c.arrows
 
-.PHONY: all
-all: $(schemas)
+SCHEMA_FILES := $(GEDI_L2A_SCHEMA) $(GEDI_L2B_SCHEMA) $(GEDI_L4A_SCHEMA) $(GEDI_L4C_SCHEMA)
 
-schemas/GEDI_L2A: $(GEDI_L2A_HDF5) datasets/GEDI_L2A.txt scripts/generate_schema.py
-	uv run scripts/generate_schema.py --datasets $(@:schemas/%=datasets/%).txt --output ${@}.arrows $<
+GEDI_L2A_PARQUET := $(OUTPUT_DIR)/GEDI02_A_$(GRANULE_ID)_02_004_02_V002.parquet
+GEDI_L2B_PARQUET := $(OUTPUT_DIR)/GEDI02_B_$(GRANULE_ID)_02_004_01_V002.parquet
+GEDI_L4A_PARQUET := $(OUTPUT_DIR)/GEDI04_A_$(GRANULE_ID)_02_004_01_V002.parquet
+GEDI_L4C_PARQUET := $(OUTPUT_DIR)/GEDI04_C_$(GRANULE_ID)_02_001_01_V002.parquet
 
-schemas/GEDI_L2B: $(GEDI_L2B_HDF5) datasets/GEDI_L2B.txt scripts/generate_schema.py
-	uv run scripts/generate_schema.py --datasets $(@:schemas/%=datasets/%).txt --output ${@}.arrows $<
+PARQUET_FILES := $(GEDI_L2A_PARQUET) $(GEDI_L2B_PARQUET) $(GEDI_L4A_PARQUET) $(GEDI_L4C_PARQUET)
 
-schemas/GEDI_L4A: $(GEDI_L4A_HDF5) datasets/GEDI_L4A.txt scripts/generate_schema.py
-	uv run scripts/generate_schema.py --datasets $(@:schemas/%=datasets/%).txt --output ${@}.arrows $<
+.PHONY: schema
+schema: $(SCHEMA_FILES)
+SCHEMA_SOURCES := scripts/generate_schema.py src/gedi_geoparquet/pyarrow.py
 
-schemas/GEDI_L4C: $(GEDI_L4C_HDF5) datasets/GEDI_L4C.txt scripts/generate_schema.py
-	uv run scripts/generate_schema.py --datasets $(@:schemas/%=datasets/%).txt --output ${@}.arrows $<
+$(GEDI_L2A_SCHEMA): $(SCHEMA_SOURCES)
+	uv run scripts/generate_schema.py $(GEDI_L2A_HDF5_URL) "$@"
 
-$(GEDI_L2A_HDF5):
-	curl $(CURL_OPTS) --output $@ $(LPDAAC_BASE_URL)/GEDI02_A.002/$(shell basename $@ .h5)/$(shell basename $@)
+$(GEDI_L2B_SCHEMA): $(SCHEMA_SOURCES)
+	uv run scripts/generate_schema.py $(GEDI_L2B_HDF5_URL) "$@"
 
-$(GEDI_L2B_HDF5):
-	curl $(CURL_OPTS) --output $@ $(LPDAAC_BASE_URL)/GEDI02_B.002/$(shell basename $@ .h5)/$(shell basename $@)
+$(GEDI_L4A_SCHEMA): $(SCHEMA_SOURCES)
+	uv run scripts/generate_schema.py $(GEDI_L4A_HDF5_URL) "$@"
 
-$(GEDI_L4A_HDF5):
-	curl $(CURL_OPTS) --output $@ $(ORNLDAAC_BASE_URL)/GEDI_L4A_AGB_Density_V2_1/data/$(shell basename $@)
+$(GEDI_L4C_SCHEMA): $(SCHEMA_SOURCES)
+	uv run scripts/generate_schema.py $(GEDI_L4C_HDF5_URL) "$@"
 
-$(GEDI_L4C_HDF5):
-	curl $(CURL_OPTS) --output $@ $(ORNLDAAC_BASE_URL)/GEDI_L4C_WSCI/data/$(shell basename $@)
+.PHONY: convert
+convert: $(PARQUET_FILES)
+CONVERT_SOURCES := scripts/convert.py src/gedi_geoparquet/schema/**/* src/gedi_geoparquet/hdf5.py
+
+$(GEDI_L2A_PARQUET): $(GEDI_L2A_SCHEMA) $(CONVERT_SOURCES)
+	uv run scripts/convert.py $(GEDI_L2A_HDF5_URL) $(OUTPUT_DIR)
+
+$(GEDI_L2B_PARQUET): $(GEDI_L2B_SCHEMA) $(CONVERT_SOURCES)
+	uv run scripts/convert.py $(GEDI_L2B_HDF5_URL) $(OUTPUT_DIR)
+
+$(GEDI_L4A_PARQUET): $(GEDI_L4A_SCHEMA) $(CONVERT_SOURCES)
+	uv run scripts/convert.py $(GEDI_L4A_HDF5_URL) $(OUTPUT_DIR)
+
+$(GEDI_L4C_PARQUET): $(GEDI_L4C_SCHEMA) $(CONVERT_SOURCES)
+	uv run scripts/convert.py $(GEDI_L4C_HDF5_URL) $(OUTPUT_DIR)
+
+.PHONY: join
+join: $(OUTPUT_DIR)/GEDI_$(GRANULE_ID).parquet
+
+$(OUTPUT_DIR)/GEDI_$(GRANULE_ID).parquet: scripts/join.py $(PARQUET_FILES)
+	uv run scripts/join.py $(OUTPUT_DIR)/GEDI0*$(GRANULE_ID)* "$@"
 
 .PHONY: clean
 clean:
-	rm $(CACHE_DIR)/*.h5
+	rm -f $(SCHEMA_DIR)/gedi_l*.arrows
+	rm -f data/*$(GRANULE_ID)*.parquet
+
+.PHONY: test
+test:
+	uv run pytest

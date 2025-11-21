@@ -7,8 +7,10 @@ import h5py
 import polars as pl
 import polars.datatypes
 from polars.io.plugins import register_io_source
+from polars._typing import ArrowSchemaExportable
 
 import gedi_geoparquet.hdf5 as hdf5_
+import gedi_geoparquet.pyarrow as pa_
 
 DEFAULT_BATCH_SIZE = 100_000
 DEFAULT_N_ROWS = 2**64 - 1
@@ -17,7 +19,7 @@ DEFAULT_N_ROWS = 2**64 - 1
 def scan_hdf5(
     group: h5py.Group,
     *,
-    schema: pl.Schema | None = None,
+    schema: ArrowSchemaExportable | None = None,
 ) -> pl.LazyFrame:
     """Lazily read from an h5py Group (or File, which is a Group).
 
@@ -62,13 +64,14 @@ def scan_hdf5(
     ┌──────────────┬────────┬────────┬─────────────────┐
     │ group/nested ┆ linked ┆ scalar ┆ two_d           │
     │ ---          ┆ ---    ┆ ---    ┆ ---             │
-    │ i8           ┆ i8     ┆ f64    ┆ list[f32]       │
+    │ i8           ┆ i8     ┆ f64    ┆ array[f32, 3]   │
     ╞══════════════╪════════╪════════╪═════════════════╡
     │ 1            ┆ 1      ┆ 5.0    ┆ [0.0, 1.0, 2.0] │
     │ 0            ┆ 0      ┆ 5.0    ┆ [3.0, 4.0, 5.0] │
     └──────────────┴────────┴────────┴─────────────────┘
     """
-    schema = schema or _infer_schema(group)
+    schema = schema or pa_.infer_schema(group)
+    pl_schema = pl.Schema(schema)
 
     def source(
         columns: Sequence[str] | None,
@@ -76,8 +79,8 @@ def scan_hdf5(
         n_rows: int | None,
         batch_size: int | None,
     ) -> Iterator[pl.DataFrame]:
-        columns = columns or tuple(schema.keys())
-        partial_schema = pl.Schema({name: schema[name] for name in columns})
+        columns = columns or tuple(pl_schema.keys())
+        partial_schema = pl.Schema({name: pl_schema[name] for name in columns})
         datasets = tuple(t.cast(h5py.Dataset, group[column]) for column in columns)
         scalars = {ds for ds in datasets if ds.shape == (1,)}
 
@@ -106,7 +109,9 @@ def scan_hdf5(
 
             yield filtered_df
 
-    return register_io_source(source, schema=schema, validate_schema=True, is_pure=True)
+    return register_io_source(
+        source, schema=pl_schema, validate_schema=True, is_pure=True
+    )
 
 
 def _infer_schema(group: h5py.Group) -> pl.Schema:

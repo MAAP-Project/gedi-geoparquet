@@ -1,13 +1,23 @@
 #!/usr/bin/env python
 
+import os
 import typing as t
 from pathlib import Path
+from urllib.parse import urlparse
 
 import fsspec
 import gedi_geoparquet as gedi
 import h5py
-import pyarrow.parquet as pq
 from cyclopts import App
+
+
+# Oddly, aiohttp requires NETRC to be set for trust_env=True to cause the netrc
+# file to be read.
+if "NETRC" not in os.environ:
+    import platform
+
+    netrc_name = "_netrc" if platform.system() == "Windows" else ".netrc"
+    os.environ["NETRC"] = os.path.expanduser(f"~/{netrc_name}")
 
 type Compression = t.Literal["brotli", "gzip", "lz4", "snappy", "zstd"]
 
@@ -23,7 +33,6 @@ def convert(
     output_dir: Path,
     /,
     *,
-    writer: t.Literal["pyarrow", "polars"] = "pyarrow",
     compression: Compression = "zstd",
     compression_level: int | None = None,
 ) -> None:
@@ -35,8 +44,6 @@ def convert(
         Path or HTTPS URL to an HDF5 GEDI file (L2A, L2B, L4A, or L4C) to convert.
     output_dir
         Directory to write resulting .parquet file to.
-    writer
-        Which library to use for writing the parquet output file.
     compression
         Which compression algorithm to use when writing to the parquet output file.
     compression_level
@@ -46,14 +53,6 @@ def convert(
         of the codec you are using.  An exception is thrown if the compression codec
         does not allow specifying a compression level.
     """
-    import os
-    from urllib.parse import urlparse
-
-    # Oddly, aiohttp requires NETRC to be set for trust_env=True to cause the
-    # netrc file to be read.
-    if "NETRC" not in os.environ:
-        os.environ["NETRC"] = os.path.expanduser("~/.netrc")
-
     url: str
     fs: fsspec.AbstractFileSystem
     fs, url = fsspec.url_to_fs(
@@ -63,54 +62,18 @@ def convert(
         client_kwargs=dict(trust_env=True),
     )
     basename = urlparse(url).path.rsplit("/", 1)[-1]
-    output = (output_dir / basename).with_suffix(
-        f".{compression}-{compression_level}-{writer}.parquet"
-    )
+    output = (output_dir / basename).with_suffix(".parquet")
 
     with fs.open(url) as fp, h5py.File(fp) as hdf5:
-        convert = convert_via_polars if writer == "polars" else convert_via_pyarrow
-        convert(
-            hdf5,
-            output=output,
+        collection_name = str(hdf5.attrs["short_name"])
+        collection_schema = gedi.abridged_schema(collection_name)
+
+        gedi.to_polars(hdf5, schema=collection_schema).collect().write_parquet(
+            output,
             compression=compression,
             compression_level=compression_level,
+            metadata=gedi.GEOPARQUET_METADATA,  # type: ignore[arg-type]
         )
-
-
-def convert_via_polars(
-    file: h5py.File,
-    *,
-    output: Path,
-    compression: Compression,
-    compression_level: int | None,
-) -> None:
-    schema = gedi.abridged_polars_schema(str(file.attrs["short_name"]))
-    lf = gedi.to_polars(file, schema=schema)
-
-    lf.sink_parquet(
-        output,
-        compression=compression,
-        compression_level=compression_level,
-        metadata=gedi.GEOPARQUET_METADATA,
-    )
-
-
-def convert_via_pyarrow(
-    file: h5py.File,
-    *,
-    output: Path,
-    compression: Compression,
-    compression_level: int | None,
-) -> None:
-    schema = gedi.abridged_arrow_schema(str(file.attrs["short_name"]))
-    table = gedi.to_arrow(file, schema=schema)
-
-    pq.write_table(
-        table,
-        output,
-        compression=compression,
-        compression_level=compression_level,
-    )
 
 
 if __name__ == "__main__":
