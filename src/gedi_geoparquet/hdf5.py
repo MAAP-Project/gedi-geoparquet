@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 import typing as t
 from enum import StrEnum, auto
 
@@ -403,3 +403,75 @@ def flatten(group: h5py.Group) -> Mapping[str, h5py.Dataset]:
     group.visit_links(lambda relname: objects.update({relname: group[relname]}))
 
     return {name: obj for name, obj in objects.items() if isinstance(obj, h5py.Dataset)}
+
+
+def batched(ds: h5py.Dataset, n: int) -> Iterator[t.Any]:
+    """Lazily batch data from a dataset into slices of length ``n``.
+
+    For a dataset with only a single row, each "batch" consists solely of the
+    single row. The returned iterator will infinitely repeat the single row
+    value so that it can be conveniently zipped with other batched datasets,
+    thus automatically filling a "column" to match the heights (lengths) of the
+    other batches.
+
+    For a dataset with multiple rows, the last batch will contain `len(ds) % n`
+    elements.
+
+    Parameters
+    ----------
+    ds
+        Dataset to create batches from.
+    n
+        Maximum number of elements in each batch.  All batches will contain
+        this many elements, except perhaps for the last batch, which may
+        contain fewer.
+
+    Returns
+    -------
+    Iterator
+        Iterator of slices of elements from ``ds``, each containing at most
+        ``n`` elements.  The last slice will contain `len(ds) % n` elements.
+        If ``ds`` contains only a single row, the single row value will be
+        repeated infinitely.
+
+    Examples
+    --------
+    >>> import h5py
+
+    Given a file with a "scalar" dataset, a 2D dataset with a single row,
+    and a 2D dataset with multiple rows:
+
+    >>> f = h5py.File.in_memory()
+    >>> scalar = f.create_dataset("scalar", data=[5.0])
+    >>> one_row = f.create_dataset("one_row", data=[[0, 1, 2]])
+    >>> n_rows = f.create_dataset("n_rows", data=[0, 1, 2, 3, 4])
+
+    Batching the scalar dataset simply repeats the scalar value forever,
+    regardless of the value of ``n`` (which is ignored in this case):
+
+    >>> b = batched(scalar, 10_000)
+    >>> next(b)
+    np.float64(5.0)
+    >>> next(b)
+    np.float64(5.0)
+
+    The same is also true for the 2D dataset with only a single row (i.e.,
+    the single row is repeated forever):
+
+    >>> b = batched(one_row, 10_000)
+    >>> next(b)
+    array([0, 1, 2])
+    >>> next(b)
+    array([0, 1, 2])
+
+    Only the dataset with multiple rows gets batched into a finite number of
+    slices:
+
+    >>> list(batched(n_rows, 2))
+    [array([0, 1]), array([2, 3]), array([4])]
+    """
+    from itertools import repeat
+
+    slices = (slice(start, start + n) for start in range(0, len(ds), n))
+
+    return repeat(ds[0]) if len(ds) == 1 else (ds[s] for s in slices)
