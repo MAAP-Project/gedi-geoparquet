@@ -38,16 +38,19 @@ def dump_schema(
     show_schema_metadata
         Display schema-level key-value metadata.
     """
-    # This line works and type checks:
-    #
-    #   schema = pa.ipc.read_schema(pa.py_buffer(schema_file.read_bytes()))
-    #
-    # It is equivalent to the following line, but the following line does not
-    # type check.  Although `str` and `Path` are both supported argument types,
-    # they are not covered by the type annotation on `read_schema`.
 
     schema = (
-        pq.read_schema(file) if file.suffix == ".parquet" else pa.ipc.read_schema(file)  # type: ignore
+        pq.read_schema(file)
+        if file.suffix == ".parquet"
+        # This call works and type checks:
+        #
+        #   pa.ipc.read_schema(pa.py_buffer(file.read_bytes()))
+        #
+        # It is equivalent to the following line, which does NOT type check.
+        # Although `str` and `Path` are both supported argument types, they are
+        # not covered by the type annotation on `pa.ipc.read_schema`.
+        # See https://github.com/zen-xu/pyarrow-stubs/issues/279
+        else pa.ipc.read_schema(file)  # type: ignore
     )
 
     print(

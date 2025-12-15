@@ -271,28 +271,30 @@ def _beam_to_polars(
     """
     beam_name = BeamName[_basename(beam)]
 
-    return pl_.scan_hdf5(beam, schema=schema).with_columns(
-        # Converting from a PyArrow table to a Pandas DataFrame (via pl.Table.to_pandas)
-        # fails with the following error when using enum columns, so we're
-        # sticking with string columns.  (The thought with enum was that perhaps
-        # they're stored and queried more efficiently.)
-        #
-        #     ArrowTypeError: Converting unsigned dictionary indices to pandas not yet
-        #     supported, index type: uint8
-        #
-        # This indicates that it doesn't like this part of the schema (notice that both
-        # column types have dictionary indices of typt uint8, corresponding to the
-        # error message above, but using string instead of enum resolves the error):
-        #
-        #     beam_name: dictionary<values=string, indices=uint8, ordered=0>
-        #      -- field metadata --
-        #      _PL_ENUM_VALUES2: '8;BEAM00008;BEAM00018;BEAM00108;BEAM00118;BEAM01018;' + 28
-        #      beam_type: dictionary<values=string, indices=uint8, ordered=0>
-        #      -- field metadata --
-        #      _PL_ENUM_VALUES2: '8;coverage5;power'
-        #
-        # beam_name=pl.lit(beam_name).cast(pl.Enum(BeamName)),
-        # beam_type=pl.lit(beam_name.type).cast(pl.Enum(BeamType)),
+    # Converting from a PyArrow table to a Pandas DataFrame (via
+    # pl.Table.to_pandas) fails with the following error when using enum
+    # columns, so we're sticking with string columns.  (The thought with enum
+    # was that perhaps they're stored and queried more efficiently.)
+    #
+    #     ArrowTypeError: Converting unsigned dictionary indices to pandas not
+    #     yet supported, index type: uint8
+    #
+    # This indicates that it doesn't like this part of the schema (notice that
+    # both column types have dictionary indices of typt uint8, corresponding to
+    # the error message above, but using string instead of enum resolves the
+    # error):
+    #
+    #     beam_name: dictionary<values=string, indices=uint8, ordered=0>
+    #     -- field metadata --
+    #     _PL_ENUM_VALUES2: '8;BEAM00008;BEAM00018;BEAM00108;BEAM00118;BEAM01018;' + 28
+    #     beam_type: dictionary<values=string, indices=uint8, ordered=0>
+    #     -- field metadata --
+    #     _PL_ENUM_VALUES2: '8;coverage5;power'
+    #
+    # beam_name=pl.lit(beam_name).cast(pl.Enum(BeamName)),
+    # beam_type=pl.lit(beam_name.type).cast(pl.Enum(BeamType)),
+
+    return pl_.scan_hdf5(beam, schema).with_columns(
         beam_name=pl.lit(beam_name).cast(pl.String),
         beam_type=pl.lit(beam_name.type).cast(pl.String),
     )
