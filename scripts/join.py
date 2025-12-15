@@ -66,7 +66,7 @@ def join(
         pl.col("sensitivity_a2") >= 0.95,
         quality_flag=1,
         surface_flag=1,
-    ).collect().write_parquet(
+    ).drop("quality_flag", "surface_flag").collect().write_parquet(
         output,
         compression=compression,
         compression_level=compression_level,
