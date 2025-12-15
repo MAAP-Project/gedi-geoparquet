@@ -5,11 +5,9 @@ from collections.abc import Iterator, Sequence
 
 import h5py
 import polars as pl
-import polars.datatypes
-from polars.io.plugins import register_io_source
 from polars._typing import ArrowSchemaExportable
+from polars.io.plugins import register_io_source
 
-import gedi_geoparquet.hdf5 as hdf5_
 import gedi_geoparquet.pyarrow as pa_
 
 DEFAULT_BATCH_SIZE = 100_000
@@ -112,112 +110,4 @@ def scan_hdf5(
         source, schema=pl_schema, validate_schema=True, is_pure=True
     )
 
-
-def _infer_schema(group: h5py.Group) -> pl.Schema:
-    """Infer a Polars Schema for an h5py Group.
-
-    Flatten the group, such that all h5py Datasets at all levels within the
-    group are treated as though they are direct children of the group, with
-    names relative to the group name.
-
-    Arguments
-    ---------
-    group
-        Group for which to infer a Polars Schema.
-
-    Returns
-    -------
-    schema
-        Polars Schema with one entry per dataset within ``group`` (recursive),
-        where each entry name is the name of the corresponding dataset relative
-        to the name of ``group``.  The data type of an entry is converted from
-        the numpy datatype of the corresponding dataset.  For object types,
-        strings are assumed. For multi-dimensional datasets, the Polars data
-        type is nested in `pl.List` for each dimension beyond the first (see
-        example).
-
-    Examples
-    --------
-    >>> import h5py
-
-    Notice that the `h5py` string dtype resolves to the numpy object dtype, not
-    the numpy string dtype:
-
-    >>> str_dtype = h5py.string_dtype()
-    >>> str_dtype
-    dtype('O')
-
-    When inferring a schema, object types are translated to string types:
-
-    >>> with h5py.File.in_memory() as f:
-    ...     group = f.create_group("group")
-    ...     ds_1d = group.create_dataset("ds_1d", shape=(10_000,), dtype="f8")
-    ...     ds_2d = group.create_dataset("ds_2d", shape=(10_000, 10), dtype="f8")
-    ...     ds_str = group.create_dataset("ds_str", shape=(10_000,), dtype=str_dtype)
-    ...     subgroup = group.create_group("subgroup")
-    ...     ds_0d = subgroup.create_dataset("ds_0d", dtype="i8")
-    ...     ds_3d = subgroup.create_dataset("ds_3d", shape=(10_000, 10, 10), dtype="u1")
-    ...     _infer_schema(group)
-    Schema({'ds_1d': Float64,
-            'ds_2d': List(Float64),
-            'ds_str': String,
-            'subgroup/ds_0d': Int64,
-            'subgroup/ds_3d': List(List(UInt8))})
-    """
-    return pl.Schema(
-        {name: _schema_dtype(ds) for name, ds in hdf5_.flatten(group).items()}
-    )
-
-
-def _schema_dtype(ds: h5py.Dataset) -> pl.DataType | polars.datatypes.DataTypeClass:
-    """Determine the Polars DataType for an HDF5 Dataset.
-
-    Parameters
-    ----------
-    ds
-        Dataset to determine Polars DataType for, for use in a Polars Schema,
-        taking dimensionality into account.
-
-    Returns
-    -------
-    datatype
-        Polars DataType corresponding to the numpy datatype of ``ds``.  For the
-        numpy object dtype, this is `polars.String`.  For multi-dimensional
-        datasets, the Polars data type is nested within `pl.List` for each
-        dimension beyond the first (see examples).
-
-    Examples
-    --------
-    >>> import h5py
-    >>> import numpy as np
-
-    >>> obj_type = h5py.string_dtype()
-    >>> obj_type
-    dtype('O')
-
-    >>> with h5py.File.in_memory() as f:
-    ...     ds_1d = f.create_dataset("ds_1d", shape=(10_000,), dtype="f8")
-    ...     ds_2d = f.create_dataset("ds_2d", shape=(10_000, 10), dtype="f8")
-    ...     ds_3d = f.create_dataset("ds_3d", shape=(10_000, 10, 10), dtype="f8")
-    ...     ds_obj = f.create_dataset("ds_str", shape=(10_000,), dtype=obj_type)
-    ...     _schema_dtype(ds_1d)
-    ...     _schema_dtype(ds_2d)
-    ...     _schema_dtype(ds_3d)
-    ...     _schema_dtype(ds_obj)
-    Float64
-    List(Float64)
-    List(List(Float64))
-    String
-    """
-    from functools import reduce
-    from polars.datatypes.convert import numpy_char_code_to_dtype
-
-    # numpy_char_code_to_dtype does not handle numpy Object type ("O"), so we
-    # have to handle it ourselves, and we simply assume it represents a string.
-    base_dtype = (
-        pl.String
-        if (numpy_char_code := ds.dtype.char) == "O"
-        else numpy_char_code_to_dtype(numpy_char_code)
-    )
-
-    return reduce(lambda dtype, _: pl.List(dtype), range(1, ds.ndim), base_dtype)
+    return register_io_source(source, schema=schema, validate_schema=True, is_pure=True)
