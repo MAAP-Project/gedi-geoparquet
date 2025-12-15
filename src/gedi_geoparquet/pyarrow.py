@@ -4,12 +4,11 @@ import typing as t
 
 import h5py
 import pyarrow as pa
-from polars._typing import ArrowSchemaExportable
 
 import gedi_geoparquet.hdf5 as hdf5_
 
 
-def infer_schema(group: h5py.Group) -> ArrowSchemaExportable:
+def infer_schema(group: h5py.Group) -> pa.Schema:
     """Infer an Arrow Schema for an h5py Group.
 
     Flatten the group, such that all h5py Datasets at all levels within the
@@ -86,7 +85,7 @@ def infer_schema(group: h5py.Group) -> ArrowSchemaExportable:
     datasets = hdf5_.flatten(group)
     fields = (_field_from_dataset(name, ds) for name, ds in datasets.items())
 
-    return t.cast(ArrowSchemaExportable, pa.schema(fields))
+    return pa.schema(fields)
 
 
 def _field_from_dataset(name: str, ds: h5py.Dataset) -> pa.Field[t.Any]:
