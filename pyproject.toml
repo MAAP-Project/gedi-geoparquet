@@ -7,10 +7,8 @@ name = "gedi-geoparquet"
 dynamic = ["version"]
 description = "Library for converting GEDI HDF5 files into GeoParquet files."
 readme = "README.md"
-authors = [
-    { name = "Chuck Daniels", email = "chuck@developmentseed.org" }
-]
-requires-python = ">=3.12"
+authors = [{ name = "Chuck Daniels", email = "chuck@developmentseed.org" }]
+requires-python = ">=3.13"
 classifiers = [
     "Development Status :: 1 - Planning",
     "Environment :: Console",
@@ -18,7 +16,6 @@ classifiers = [
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering",
@@ -30,6 +27,7 @@ license-files = ["LICEN[CS]E*"]
 dependencies = [
     "geoarrow-pyarrow>=0.2.0",
     "h5py>=3.13.0",
+    "polars>=1.34.0",
     "pyarrow>=20.0.0",
 ]
 
@@ -39,9 +37,19 @@ Issues = "https://github.com/MAAP-Project/gedi-geoparquet/issues"
 
 [dependency-groups]
 dev = [
+    "aiohttp>=3.13.1",
+    "cyclopts>=4.0.0",
+    "duckdb>=1.4.1",
+    "fsspec>=2025.9.0",
+    "geoarrow-types>=0.3.0",
+    "geopandas>=1.1.1",
+    "ipython>=9.6.0",
     "mypy>=1.15.0",
+    "pandas>=2.3.3",
     "pre-commit>=4.2.0",
     "pyarrow-stubs>=20.0.0.20250716",
+    "pytest>=8.4.2",
+    "requests>=2.32.5",
     "ruff>=0.11.8",
 ]
 
@@ -49,16 +57,17 @@ dev = [
 source = "vcs"
 
 [tool.mypy]
-files = ["src", "tests"]
+files = ["src"]
 strict = true
 
 [[tool.mypy.overrides]]
-module = ["h5py"]
+module = ["fsspec", "geoarrow.*", "h5py"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-addopts = ["--doctest-modules"]
-doctest_optionflags = ["NORMALIZE_WHITESPACE", "ELLIPSIS"]
+minversion = "8.0"
+addopts = ["-ra", "-vv", "--doctest-modules", "--doctest-report=ndiff"]
+doctest_optionflags = ["ELLIPSIS", "NORMALIZE_WHITESPACE", "NUMBER"]
 
 [tool.uv]
 package = true
