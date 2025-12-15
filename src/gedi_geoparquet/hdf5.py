@@ -333,8 +333,7 @@ def _basename(obj: h5py.Group | h5py.Dataset) -> str:
     ('/group/subgroup', 'subgroup')
     ('/group/subgroup/data', 'data')
     """
-    *_parent, name = str(obj.name).rsplit("/", 1)
-    return name
+    return str(obj.name).rsplit("/", 1)[-1]
 
 
 def _rename_column(column: str) -> str:
