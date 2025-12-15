@@ -63,6 +63,7 @@ def convert(
     )
     basename = urlparse(url).path.rsplit("/", 1)[-1]
     output = (output_dir / basename).with_suffix(".parquet")
+    output.parent.mkdir(parents=True, exist_ok=True)
 
     with fs.open(url) as fp, h5py.File(fp) as hdf5:
         collection_name = str(hdf5.attrs["short_name"])
