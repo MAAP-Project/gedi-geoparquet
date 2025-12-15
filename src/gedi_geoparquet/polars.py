@@ -18,7 +18,6 @@ DEFAULT_N_ROWS = 2**64 - 1
 
 def scan_hdf5(
     group: h5py.Group,
-    *,
     schema: ArrowSchemaExportable | None = None,
 ) -> pl.LazyFrame:
     """Lazily read from an h5py Group (or File, which is a Group).

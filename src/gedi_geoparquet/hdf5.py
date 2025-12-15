@@ -69,7 +69,7 @@ nanoseconds), convert to `int`, and use `ns` (nanosecond) resolution.
 """
 
 
-def to_arrow(file: h5py.File, *, schema: ArrowSchemaExportable) -> pa.Table:
+def to_arrow(file: h5py.File, schema: ArrowSchemaExportable) -> pa.Table:
     """Read a GEDI HDF5 file into an Arrow Table.
 
     This is the Arrow equivalent of materializing the Polars LazyFrame produced
@@ -88,7 +88,7 @@ def to_arrow(file: h5py.File, *, schema: ArrowSchemaExportable) -> pa.Table:
     )
 
 
-def to_polars(file: h5py.File, *, schema: ArrowSchemaExportable) -> pl.LazyFrame:
+def to_polars(file: h5py.File, schema: ArrowSchemaExportable) -> pl.LazyFrame:
     """Lazily read a GEDI HDF5 file into a Polars LazyFrame.
 
     The specified schema indicates which datasets from each of the beam groups

@@ -69,7 +69,7 @@ def convert(
         collection_name = str(hdf5.attrs["short_name"])
         collection_schema = gedi.abridged_schema(collection_name)
 
-        gedi.to_polars(hdf5, schema=collection_schema).collect().write_parquet(
+        gedi.to_polars(hdf5, collection_schema).collect().write_parquet(
             output,
             compression=compression,
             compression_level=compression_level,
