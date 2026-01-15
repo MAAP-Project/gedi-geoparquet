@@ -11,7 +11,7 @@ __all__ = [
     "full_schema",
 ]
 
-GEOPARQUET_METADATA: t.Final[dict[str | bytes, str | bytes]] = {
+GEOPARQUET_METADATA: t.Final = {
     "geo": json.dumps(
         {
             "version": "1.1.0",
@@ -59,4 +59,4 @@ def abridged_schema(short_name: str) -> pa.Schema:
     dataset_names: set[str] = module.ABRIDGED_DATASET_NAMES
     fields = (field for field in full_schema(short_name) if field.name in dataset_names)
 
-    return pa.schema(fields, GEOPARQUET_METADATA)
+    return pa.schema(fields, GEOPARQUET_METADATA)  # type: ignore

@@ -125,7 +125,7 @@ def scan_hdf5(
         columns: Sequence[str],
         batch_size: int,
     ) -> Iterator[pl.DataFrame]:
-        dss = tuple(t.cast(h5py.Dataset, group[column]) for column in columns)
+        dss = (t.cast(h5py.Dataset, group[column]) for column in columns)
         batched_dss = (h5py_.batched(ds, batch_size) for ds in dss)
 
         data_batches = (dict(zip(columns, batch)) for batch in zip(*batched_dss))
