@@ -27,6 +27,7 @@ license-files = ["LICEN[CS]E*"]
 dependencies = [
     "aiofile>=3.9.0",
     "aiomultiprocess>=0.9.1",
+    "cachetools>=6.2.4",
     "geoarrow-pyarrow>=0.2.0",
     "h5py>=3.13.0",
     "polars>=1.34.0",

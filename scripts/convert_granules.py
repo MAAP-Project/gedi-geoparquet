@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 
 import aiohttp
 import aiomultiprocess
+import cachetools
 import fsspec
 import fsspec.implementations
 import fsspec.implementations.dirfs
@@ -291,16 +292,12 @@ async def s3_fetch_granule(
     temp_filename = get_tempfile(data_url)
     s3 = await get_s3fs(credentials_url)
 
-    try:
-        async with (
-            await s3.open_async(data_url) as remote_file,
-            async_open(temp_filename, mode="wb") as local_file,
-        ):
-            while chunk := await remote_file.read(8 * 1024 * 1024):
-                await local_file.write(chunk)
-    finally:
-        # await s3_session.close()
-        pass
+    async with (
+        await s3.open_async(data_url) as remote_file,
+        async_open(temp_filename, mode="wb") as local_file,
+    ):
+        while chunk := await remote_file.read(8 * 1024 * 1024):
+            await local_file.write(chunk)
 
     print(f"Finished fetching {temp_filename}")
     return temp_filename
@@ -319,17 +316,19 @@ async def get_s3fs(s3_credentials_url: str) -> s3fs.S3FileSystem:
     return s3
 
 
-_creds_cache: dict[str, dict[str, str]] = {}
+_creds_cache = cachetools.TTLCache(maxsize=10, ttl=50 * 60)
 _lock = asyncio.Lock()
 
 
 async def get_s3_credentials(s3_credentials_url: str) -> dict[str, str]:
     if s3_credentials_url in _creds_cache:
-        return _creds_cache[s3_credentials_url]
+        return t.cast(dict[str, str], _creds_cache[s3_credentials_url])
 
     async with _lock:
         if s3_credentials_url in _creds_cache:
-            return _creds_cache[s3_credentials_url]
+            return t.cast(dict[str, str], _creds_cache[s3_credentials_url])
+
+        print(f"Fetching credentials from {s3_credentials_url}")
 
         async with get_session().get(
             s3_credentials_url,
@@ -340,7 +339,7 @@ async def get_s3_credentials(s3_credentials_url: str) -> dict[str, str]:
             creds = await response.json(content_type="text/html")
             _creds_cache[s3_credentials_url] = creds
 
-        return _creds_cache[s3_credentials_url]
+        return t.cast(dict[str, str], _creds_cache[s3_credentials_url])
 
 
 def get_session() -> aiohttp.ClientSession:
