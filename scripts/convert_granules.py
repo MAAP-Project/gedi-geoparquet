@@ -119,8 +119,13 @@ async def convert_granules(
     )
     subs, urlss = zip(*itertools.islice(sub_download_urls, limit))
     ofs = open_files(output, subs)
+    processes = (os.cpu_count() or 4) // 2
 
-    async with aiomultiprocess.Pool(queuecount=8, childconcurrency=2) as pool:
+    async with aiomultiprocess.Pool(
+        processes=processes,
+        queuecount=processes,
+        childconcurrency=2,
+    ) as pool:
         overwrites = itertools.repeat(overwrite)
         argss = tuple(zip(urlss, ofs, overwrites))
         _ = await pool.starmap(join_group, argss)
@@ -193,7 +198,7 @@ def open_files(dest: str, sorbits: Sequence[str]) -> Sequence[fsspec.core.OpenFi
 
     filenames = (f"GEDI_{sorbit}.parquet" for sorbit in sorbits)
 
-    return tuple(fsspec.core.OpenFile(fs, filename, "w") for filename in filenames)
+    return tuple(fsspec.core.OpenFile(fs, filename, "wb") for filename in filenames)
 
 
 async def join_group(
@@ -201,10 +206,10 @@ async def join_group(
     of: fsspec.core.OpenFile,
     overwrite: bool = False,
 ) -> str:
-    output: str = of.full_name
+    output_name: str = of.full_name
 
-    if not overwrite and of.fs.exists(output):
-        return output
+    if not overwrite and of.fs.exists(output_name):
+        return output_name
 
     files = await (
         https_fetch_group(t.cast(Sequence[str], urls))
@@ -212,24 +217,34 @@ async def join_group(
         else s3_fetch_group(t.cast(Sequence[tuple[str, str]], urls))
     )
 
-    print(f"Joining results to {output}")
+    print(f"Joining results to {output_name}")
+
+    tmp = tempfile.NamedTemporaryFile(delete_on_close=False)
 
     try:
-        with ExitStack() as stack, of as f:
+        with ExitStack() as stack, tmp as fp, of as dst:
             h5s = [stack.enter_context(h5py.File(file)) for file in files]
             schemas = [gedi.abridged_schema(f"{h5.attrs['short_name']}") for h5 in h5s]
             lfs = (gedi.to_polars(h5, schema) for h5, schema in zip(h5s, schemas))
             lf = apply_quality_filters(reduce(join_on_shot_number, lfs))
 
-            await asyncio.to_thread(lf.sink_parquet, f, metadata=GEOPARQUET_METADATA)
+            # Write to temporary location in case something goes sideways before
+            # we're finished.
+            await asyncio.to_thread(lf.sink_parquet, fp, metadata=GEOPARQUET_METADATA)
+            fp.close()
+
+            # Copy tempoary file to final destination.
+            async with async_open(tmp.name, mode="rb") as src:
+                async for chunk in src.iter_chunked(8 * 1024 * 1024):
+                    dst.write(chunk)
     finally:
         for file in files:
             print(f"Deleting {file}")
             Path(file).unlink(missing_ok=True)
 
-    print(f"Finished joining results to {output}")
+    print(f"Finished joining results to {output_name}")
 
-    return output
+    return output_name
 
 
 async def https_fetch_group(download_urls: Sequence[str]) -> Sequence[str]:
@@ -333,7 +348,7 @@ async def get_s3_credentials(s3_credentials_url: str) -> dict[str, str]:
         async with get_session().get(
             s3_credentials_url,
             # If EARTHDATA_TOKEN not set, netrc file will be checked.
-            headers={"Authorization": f"Bearer {os.getenv('EARTHDATA_TOKEN')}"},
+            headers={"Authorization": f"Bearer {os.environ['EARTHDATA_TOKEN']}"},
             timeout=aiohttp.ClientTimeout(),
         ) as response:
             creds = await response.json(content_type="text/html")
